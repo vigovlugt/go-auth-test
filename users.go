@@ -16,9 +16,9 @@ type User struct {
 
 func handleUserMe(db *sqlx.DB) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userId := getRequestUserId(db, r)
-		if userId == "" {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		userId, err := validateSession(db, r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusUnauthorized)
 			return
 		}
 

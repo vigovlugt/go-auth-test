@@ -8,7 +8,7 @@ import (
 )
 
 func newDb(ctx context.Context) (*sqlx.DB, error) {
-	db, err := sqlx.ConnectContext(ctx, "sqlite3", "db.sqlite3")
+	db, err := sqlx.ConnectContext(ctx, "sqlite3", "db.sqlite3??parseTime=true")
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS user (
 
 CREATE TABLE IF NOT EXISTS user_session (
 	id TEXT PRIMARY KEY,
-	expires_at TIMESTAMPTZ NOT NULL,
+	expires_at TEXT NOT NULL,
 	user_id TEXT NOT NULL REFERENCES user(id)
 );
 

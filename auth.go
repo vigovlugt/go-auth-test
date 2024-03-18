@@ -4,8 +4,11 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/oauth2"
@@ -135,7 +138,6 @@ func handleAuthCallback(providerName string, config *oauth2.Config, db *sqlx.DB)
 				HttpOnly: true,
 				SameSite: http.SameSiteLaxMode,
 				MaxAge:   60 * 60 * 24 * 7,
-				Domain:   "localhost",
 			})
 
 			http.Redirect(w, r, "/", http.StatusFound)
@@ -143,17 +145,36 @@ func handleAuthCallback(providerName string, config *oauth2.Config, db *sqlx.DB)
 	)
 }
 
-func getRequestUserId(db *sqlx.DB, r *http.Request) string {
+func validateSession(db *sqlx.DB, r *http.Request) (string, error) {
 	sessionIdCookie, err := r.Cookie("session")
 	if err != nil {
-		return ""
+		return "", errors.New("No session cookie")
 	}
 	sessionId := sessionIdCookie.Value
 
-	userId, err := getSessionUserId(r.Context(), db, sessionId)
+	session, err := getSession(r.Context(), db, sessionId)
 	if err != nil {
-		return ""
+		return "", err
 	}
 
-	return userId
+	log.Println(session.ExpiresAt)
+
+	expiresAt, err := time.Parse(time.RFC3339, session.ExpiresAt)
+	if err != nil {
+		return "", err
+	}
+
+	if expiresAt.Before(time.Now()) {
+		return "", errors.New("Session expired")
+	}
+
+	// If the session is more than halfway through its duration, update the expires_at time
+	if expiresAt.Sub(time.Now()) < sessionDuration/2 {
+		err = updateSessionExpiresAt(r.Context(), db, sessionId)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return session.UserID, nil
 }
